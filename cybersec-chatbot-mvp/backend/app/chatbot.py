@@ -1,75 +1,70 @@
 # backend/app/chatbot.py
 import os
 import json
-import chromadb
 from typing import List, Dict, Optional
 import openai
 from datetime import datetime
 from dotenv import load_dotenv
+
+# Qdrant imports
+from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
 
 load_dotenv()
 
 class CybersecurityChatbot:
     def __init__(self):
         self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.chroma_client = chromadb.PersistentClient(path=os.getenv("CHROMA_DB_PATH", "./data/chromadb"))
+        self.qdrant_client = QdrantClient(host=os.getenv("QDRANT_HOST", "localhost"), port=int(os.getenv("QDRANT_PORT", 6333)))
         self.collection_name = "cybersec_content"
-        
-        # Initialize or get collection
-        try:
-            self.collection = self.chroma_client.get_collection(name=self.collection_name)
-        except:
-            self.collection = self.chroma_client.create_collection(name=self.collection_name)
-        
+
+        # Create or recreate collection with correct vector size (1536 for ada-002)
+        self.qdrant_client.recreate_collection(
+            collection_name=self.collection_name,
+            vectors_config=qdrant_models.VectorParams(size=1536, distance=qdrant_models.Distance.COSINE)
+        )
+
         self.conversation_history = []
         
     def load_processed_content(self, content_path: str):
-        """Load processed content and add to vector database"""
+        """Load processed content and add to Qdrant vector database"""
         if not os.path.exists(content_path):
             print(f"Content file not found: {content_path}")
             return
-        
+
         with open(content_path, 'r', encoding='utf-8') as f:
             processed_content = json.load(f)
-        
-        # Add each section to the vector database
-        documents = []
-        embeddings = []
-        metadatas = []
-        ids = []
-        
+
+        points = []
+        idx = 0
         for file_data in processed_content:
             for i, section in enumerate(file_data["sections"]):
-                if section.get("embedding"):  # Only add sections with embeddings
-                    documents.append(section["content"])
-                    embeddings.append(section["embedding"])
-                    
-                    metadata = {
+                if section.get("embedding"):
+                    payload = {
                         "title": file_data["title"],
                         "heading": section["heading"],
                         "platform": file_data["metadata"]["platform"],
                         "difficulty": file_data["metadata"]["difficulty"],
-                        "topics": ",".join(file_data["metadata"]["topics"]),
+                        "topics": file_data["metadata"]["topics"],
                         "word_count": section["word_count"],
                         "file_path": file_data["file_path"]
                     }
-                    metadatas.append(metadata)
-                    ids.append(f"{file_data['title'].replace(' ', '_')}_{i}")
-        
-        # Add to collection in batches
+                    points.append(qdrant_models.PointStruct(
+                        id=f"{file_data['title'].replace(' ', '_')}_{i}",
+                        vector=section["embedding"],
+                        payload=payload
+                    ))
+                    idx += 1
+
+        # Upsert in batches
         batch_size = 100
-        for i in range(0, len(documents), batch_size):
-            batch_end = min(i + batch_size, len(documents))
-            
-            self.collection.add(
-                documents=documents[i:batch_end],
-                embeddings=embeddings[i:batch_end],
-                metadatas=metadatas[i:batch_end],
-                ids=ids[i:batch_end]
+        for i in range(0, len(points), batch_size):
+            self.qdrant_client.upsert(
+                collection_name=self.collection_name,
+                points=points[i:i+batch_size]
             )
-        
-        print(f"Loaded {len(documents)} sections into vector database")
-    
+
+        print(f"Loaded {len(points)} sections into Qdrant vector database")
     def create_embedding(self, text: str) -> List[float]:
         """Create embedding for text using OpenAI"""
         try:
@@ -83,24 +78,32 @@ class CybersecurityChatbot:
             return []
     
     def search_relevant_content(self, query: str, platform: str = None, n_results: int = 5) -> Dict:
-        """Search for relevant content based on user query"""
+        """Search for relevant content based on user query using Qdrant"""
         query_embedding = self.create_embedding(query)
-        
         if not query_embedding:
             return {"documents": [[]], "metadatas": [[]]}
-        
-        # Build where clause for filtering
-        where_clause = {}
+
+        # Build filter for platform
+        filters = None
         if platform:
-            where_clause["platform"] = platform
-        
-        try:
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=n_results,
-                where=where_clause if where_clause else None
+            filters = qdrant_models.Filter(
+                must=[qdrant_models.FieldCondition(
+                    key="platform",
+                    match=qdrant_models.MatchValue(value=platform)
+                )]
             )
-            return results
+
+        try:
+            results = self.qdrant_client.search(
+                collection_name=self.collection_name,
+                query_vector=query_embedding,
+                limit=n_results,
+                with_payload=True,
+                filter=filters
+            )
+            documents = [[hit.payload.get("heading", "") + "\n" + hit.payload.get("title", "") + "\n" + hit.payload.get("file_path", "") for hit in results]]
+            metadatas = [[hit.payload for hit in results]]
+            return {"documents": documents, "metadatas": metadatas}
         except Exception as e:
             print(f"Error searching content: {e}")
             return {"documents": [[]], "metadatas": [[]]}
@@ -251,9 +254,6 @@ def get_chatbot():
     global chatbot_instance
     if chatbot_instance is None:
         chatbot_instance = CybersecurityChatbot()
-        
-        # Load processed content
         content_path = os.getenv("CONTENT_PATH", "./content/processed") + "/ctf_primer_processed.json"
         chatbot_instance.load_processed_content(content_path)
-    
     return chatbot_instance
