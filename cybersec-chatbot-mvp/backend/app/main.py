@@ -80,7 +80,7 @@ async def chat_endpoint(
 ):
     """Main chat endpoint"""
     try:
-        if not request.message.strip():
+        if not request.message or not request.message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
         result = chatbot_wrapper.chat(request.message, request.platform)
         return ChatResponse(
