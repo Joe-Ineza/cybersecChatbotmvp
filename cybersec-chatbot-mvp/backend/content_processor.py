@@ -5,15 +5,14 @@ import json
 import re
 from typing import List, Dict, Optional
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
+import openai
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class ContentProcessor:
     def __init__(self):
-        self.embedding_model_name = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-        self.embedding_model = SentenceTransformer(self.embedding_model_name)
+        self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
     def process_markdown_file(self, file_path: str) -> Dict:
         """Process a single markdown file"""
@@ -105,10 +104,13 @@ class ContentProcessor:
         return metadata
     
     def create_embedding(self, text: str) -> List[float]:
-        """Create embedding for text using sentence-transformers locally."""
+        """Create embedding for text using OpenAI"""
         try:
-            embedding = self.embedding_model.encode(text[:8000], show_progress_bar=False)
-            return embedding.tolist()
+            response = self.openai_client.embeddings.create(
+                model="text-embedding-ada-002",
+                input=text[:8000]  # Limit to avoid token limit
+            )
+            return response.data[0].embedding
         except Exception as e:
             print(f"Error creating embedding: {e}")
             return []
