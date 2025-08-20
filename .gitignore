@@ -1,0 +1,92 @@
+# Python
+cybersec-chatbot-mvp/__pycache__/
+cybersec-chatbot-mvp/*.py[cod]
+cybersec-chatbot-mvp/*$py.class
+cybersec-chatbot-mvp/*.so
+cybersec-chatbot-mvp/.Python
+cybersec-chatbot-mvp/build/
+cybersec-chatbot-mvp/develop-eggs/
+cybersec-chatbot-mvp/dist/
+cybersec-chatbot-mvp/downloads/
+cybersec-chatbot-mvp/eggs/
+cybersec-chatbot-mvp/.eggs/
+cybersec-chatbot-mvp/lib/
+cybersec-chatbot-mvp/lib64/
+cybersec-chatbot-mvp/parts/
+cybersec-chatbot-mvp/sdist/
+cybersec-chatbot-mvp/var/
+cybersec-chatbot-mvp/wheels/
+cybersec-chatbot-mvp/*.egg-info/
+cybersec-chatbot-mvp/.installed.cfg
+cybersec-chatbot-mvp/*.egg
+cybersec-chatbot-mvp/MANIFEST
+
+# Virtual Environment
+cybersec-chatbot-mvp/venv/
+cybersec-chatbot-mvp/env/
+cybersec-chatbot-mvp/ENV/
+cybersec-chatbot-mvp/.venv/
+cybersec-chatbot-mvp/.env/
+
+# Environment Variables
+cybersec-chatbot-mvp/.env
+cybersec-chatbot-mvp/.env.local
+cybersec-chatbot-mvp/.env.production
+cybersec-chatbot-mvp/.env.staging
+cybersec-chatbot-mvp/*.env
+
+# IDE/Editor
+cybersec-chatbot-mvp/.vscode/
+cybersec-chatbot-mvp/.idea/
+cybersec-chatbot-mvp/*.swp
+cybersec-chatbot-mvp/*.swo
+cybersec-chatbot-mvp/*~
+
+# OS Files
+cybersec-chatbot-mvp/.DS_Store
+cybersec-chatbot-mvp/.DS_Store?
+cybersec-chatbot-mvp/._*
+cybersec-chatbot-mvp/.Spotlight-V100
+cybersec-chatbot-mvp/.Trashes
+cybersec-chatbot-mvp/ehthumbs.db
+cybersec-chatbot-mvp/Thumbs.db
+
+# Logs
+cybersec-chatbot-mvp/*.log
+cybersec-chatbot-mvp/logs/
+
+# Database
+cybersec-chatbot-mvp/*.db
+cybersec-chatbot-mvp/*.sqlite3
+cybersec-chatbot-mvp/data/
+cybersec-chatbot-mvp/chromadb/
+
+# Docker
+cybersec-chatbot-mvp/.dockerignore
+
+# Node modules (if you add frontend)
+cybersec-chatbot-mvp/node_modules/
+cybersec-chatbot-mvp/npm-debug.log*
+cybersec-chatbot-mvp/yarn-debug.log*
+cybersec-chatbot-mvp/yarn-error.log*
+
+# Jupyter Notebook
+cybersec-chatbot-mvp/.ipynb_checkpoints
+
+# pyenv
+cybersec-chatbot-mvp/.python-version
+
+# Coverage reports
+cybersec-chatbot-mvp/htmlcov/
+cybersec-chatbot-mvp/.coverage
+cybersec-chatbot-mvp/.coverage.*
+cybersec-chatbot-mvp/coverage.xml
+
+# Temporary files
+cybersec-chatbot-mvp/*.tmp
+cybersec-chatbot-mvp/*.temp
+cybersec-chatbot-mvp/.cache/
+
+# Large content files (optional)
+cybersec-chatbot-mvp/content/raw/
+cybersec-chatbot-mvp/content/processed/*.json

@@ -1,8 +1,8 @@
-# backend/app/chatbot.py
 import os
 import json
 from typing import List, Dict, Optional
-import openai
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -14,16 +14,15 @@ load_dotenv()
 
 class CybersecurityChatbot:
     def __init__(self):
-        self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.model_name = os.getenv("LLAMA_MODEL", "meta-llama/Llama-2-7b-chat-hf")
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
         self.qdrant_client = QdrantClient(host=os.getenv("QDRANT_HOST", "localhost"), port=int(os.getenv("QDRANT_PORT", 6333)))
         self.collection_name = "cybersec_content"
-
-        # Create or recreate collection with correct vector size (1536 for ada-002)
         self.qdrant_client.recreate_collection(
             collection_name=self.collection_name,
             vectors_config=qdrant_models.VectorParams(size=1536, distance=qdrant_models.Distance.COSINE)
         )
-
         self.conversation_history = []
         
     def load_processed_content(self, content_path: str):
@@ -65,17 +64,11 @@ class CybersecurityChatbot:
             )
 
         print(f"Loaded {len(points)} sections into Qdrant vector database")
+
     def create_embedding(self, text: str) -> List[float]:
-        """Create embedding for text using OpenAI"""
-        try:
-            response = self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text[:8000]
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            print(f"Error creating embedding: {e}")
-            return []
+        """Create embedding for text using a placeholder (Llama does not provide embeddings natively)."""
+        print("Warning: Llama does not provide embeddings. Consider using sentence-transformers for embeddings.")
+        return [0.0] * 1536
     
     def search_relevant_content(self, query: str, platform: str = None, n_results: int = 5) -> Dict:
         """Search for relevant content based on user query using Qdrant"""
@@ -119,72 +112,34 @@ class CybersecurityChatbot:
         return platform_contexts.get(platform, platform_contexts["general"])
     
     def generate_response(self, query: str, context: Dict, platform: str = None) -> str:
-        """Generate a beginner-friendly response using OpenAI"""
-        
+        """Generate a beginner-friendly response using Llama via Hugging Face Transformers"""
         # Build context from search results
         context_sections = []
         if context["documents"] and context["documents"][0]:
             for doc, metadata in zip(context["documents"][0], context["metadatas"][0]):
                 context_sections.append(f"**{metadata['heading']}** (from {metadata['title']}):\n{doc}")
-        
         context_text = "\n\n".join(context_sections[:3])  # Limit to top 3 results
-        
-        # Get platform-specific context
         platform_context = self.get_platform_context(platform)
-        
-        # Build conversation history context
         history_context = ""
         if self.conversation_history:
-            recent_history = self.conversation_history[-3:]  # Last 3 exchanges
+            recent_history = self.conversation_history[-3:]
             history_context = "\n".join([
-                f"User: {h['user']}\nAssistant: {h['bot'][:200]}..."
-                for h in recent_history
+                f"User: {h['user']}\nAssistant: {h['bot'][:200]}..." for h in recent_history
             ])
-        
-        system_prompt = f"""You are CyberMentor, a friendly and knowledgeable cybersecurity tutor designed to help beginners learn cybersecurity concepts.
-
-Your personality:
-- Encouraging and supportive
-- Enthusiastic about cybersecurity
-- Patient with beginners
-- Use analogies and real-world examples
-- Avoid overwhelming technical jargon
-
-Platform context: {platform_context}
-
-Your teaching approach:
-1. Start with a simple, clear explanation
-2. Use analogies when helpful (like comparing buffer overflows to overfilling a cup)
-3. Connect concepts to real-world cybersecurity incidents
-4. Provide practical next steps for learning
-5. Encourage hands-on practice
-
-Available knowledge base:
-{context_text}
-
-Recent conversation context:
-{history_context}
-
-Guidelines:
-- Keep responses under 300 words for better readability
-- Use bullet points for lists or steps
-- Include encouragement and motivation
-- If you don't know something, admit it and suggest how to find out
-- Always relate concepts back to practical cybersecurity skills"""
-
+        system_prompt = (
+            "You are CyberMentor, a friendly and knowledgeable cybersecurity tutor designed to help beginners learn cybersecurity concepts.\n"
+            f"Platform context: {platform_context}\n"
+            f"Available knowledge base: {context_text}\n"
+            f"Recent conversation context: {history_context}\n"
+            "Guidelines: Keep responses under 300 words, use bullet points, encourage, admit if you don't know, relate to practical skills."
+        )
+        prompt = f"{system_prompt}\nUser: {query}"
         try:
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
-                ],
-                temperature=0.7,
-                max_tokens=400
-            )
-            
-            return response.choices[0].message.content
-            
+            inputs = self.tokenizer(prompt, return_tensors="pt")
+            outputs = self.model.generate(**inputs, max_new_tokens=400, temperature=0.7)
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            response = response.replace(prompt, "").strip()
+            return response
         except Exception as e:
             print(f"Error generating response: {e}")
             return "I'm having trouble generating a response right now. Please try again in a moment."
